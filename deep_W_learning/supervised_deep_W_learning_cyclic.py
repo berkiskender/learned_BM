@@ -7,7 +7,6 @@ import matplotlib.pyplot as plt
 import torch.nn as nn
 import copy
 
-
 def hard_thresh(x, threshold):
     # hard threshold a tensor
     y = x.clone()
@@ -18,7 +17,6 @@ def hard_thresh(x, threshold):
     # x[x.abs() < threshold] = 0
 
     return y
-
 
 def DCT(n):
     """
@@ -42,7 +40,6 @@ def im2col(A, BSZ, stepsize=1):
     out_view = np.lib.stride_tricks.as_strided(A, shape=shp, strides=strd)
     return out_view.reshape(BSZ[0] * BSZ[1], -1)[:, ::stepsize]
 
-
 def convert_range(image, image_min, image_max, target_min, target_max):
     """
     :return reshape the image to range between 1 and -1:
@@ -52,21 +49,7 @@ def convert_range(image, image_min, image_max, target_min, target_max):
     target_image = np.divide(((image - image_min) * new_range), old_range) + target_min
     return target_image
 
-
-class deep_W(nn.Module):
-    def __init__(self):
-        super(deep_W, self).__init__()
-        self.fc1 = nn.Linear(64, 32)
-        self.ReLU = nn.ReLU(True)
-        self.fc2 = nn.Linear(32, 64)
-
-    def forward(self, x):
-        # define the forward function
-        x = self.ReLU(self.fc1(x))
-        x = self.ReLU(self.fc2(x))
-        return x
-
-
+# encoder performs transform
 class deep_W_encoder(nn.Module):
     def __init__(self):
         super(deep_W_encoder, self).__init__()
@@ -80,7 +63,7 @@ class deep_W_encoder(nn.Module):
         x = self.ReLU(self.fc2(x))
         return x
 
-
+# decoder performs inverse transform
 class deep_W_decoder(nn.Module):
     def __init__(self):
         super(deep_W_decoder, self).__init__()
@@ -97,17 +80,14 @@ class deep_W_decoder(nn.Module):
 
 torch.cuda.set_device(0)
 
-W = deep_W().cuda()
-print(W)
-
+# Initialize networks
 W_encoder = deep_W_encoder().cuda()
 print(W_encoder)
-
 W_decoder = deep_W_decoder().cuda()
 print(W_decoder)
 
 patch_size = 16
-num_matches = 5  # 20
+num_matches = 5
 num_unmatches = 5
 num_atoms = patch_size ** 2
 
@@ -183,16 +163,20 @@ for epoch in range(0, Nepoch):
         x_matched_cyc = W_decoder(hard_thresh(x_matched_tx.view(num_matches, x_noisy.shape[0]), threshold=threshold))
         x_unmatched_cyc = W_decoder(hard_thresh(x_unmatched_tx.view(num_unmatches, x_noisy.shape[0]), threshold=threshold))
 
+        # Transform loss with not matching patches set
         loss_tx = torch.mean(torch.norm(hard_thresh(x_ref1_tx, threshold) - hard_thresh(x_matched_tx, threshold), dim=1)) - \
                   torch.mean(torch.norm(hard_thresh(x_ref1_tx, threshold) - hard_thresh(x_unmatched_tx, threshold), dim=1))
 
+        # Transform loss without not matching patches set
         # loss_tx = torch.mean(torch.norm(hard_thresh(x_ref1_tx,threshold) - hard_thresh(x_matched_tx,threshold), dim=1))
 
+        # Cyclic loss including all inverse transformed patches, can only include reference patch also
         loss_cyc = criterion(x_ref1_cyc, x_ref1) + criterion(x_matched_cyc, x_matched) + criterion(x_unmatched_cyc,
                                                                                                    x_unmatched)
-
+        # Sum both losses
         loss = loss_tx + loss_cyc
 
+        # Update networks simultaneously (can be done separately to update encoder or decoder more frequently)
         optimizer_encoder.zero_grad()
         optimizer_decoder.zero_grad()
         loss.backward()
@@ -210,19 +194,15 @@ for epoch in range(0, Nepoch):
     print('cyc loss', cyc_loss)
     print('tx loss', tx_loss)
 
-np.save(os.path.join(path,
-                     'deep_Wmatrix_supervised_w_matched_%d_unmatched_%d_threshold_%.2f_gamma0_%.2f_refpatches_%d_subset_%d_BARBARA_512x512.npy' % (
-                     num_matches, num_unmatches, threshold, gamma_0, num_steps, subset_steps)), W)
-
 ##############
 # SAVE MODEL #
 ##############
 path = r"/home/berk/Desktop/Internship/LANL_MSU/MSU/learned_BM/results/"
 torch.save(
-    {'epoch': epoch, 'model_state_dict': W.state_dict(), 'optimizer_state_dict': opti.state_dict(),
+    {'epoch': epoch, 'model_state_dict': W_encoder.state_dict(), 'optimizer_state_dict': optimizer_encoder.state_dict(),
      'loss': loss},
     os.path.join(path,
-                 'deep_Wmatrix_supervised_w_matched_%d_unmatched_%d_threshold_%.2f_gamma0_%.2f_refpatches_%d_subset_%d_BARBARA_512x512.tar' % (
+                 'deep_cyclic_W_encoder_supervised_w_matched_%d_unmatched_%d_threshold_%.2f_gamma0_%.2f_refpatches_%d_subset_%d_BARBARA_512x512.tar' % (
                  num_matches, num_unmatches, threshold, gamma_0, num_steps, subset_steps)))
 
 # # Check matched unmatched patches
