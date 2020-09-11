@@ -88,39 +88,35 @@ def test_accuracy_deep_W(img, noisy, ref_patchs, ref_patchs_noisy, W, num_matche
 
     return scores
 
-# plt.subplot(2,2,1)
-# plt.imshow(np.reshape(Ref_patch,[8,8]))
-# plt.clim(0,255)
-# plt.subplot(2,2,2)
-# plt.imshow(np.reshape(Ref_noisy,[8,8]))
-# plt.clim(0,255)
-# plt.subplot(2,2,3)
-# plt.imshow(np.reshape(img[:,205505],[8,8]))
-# plt.clim(0,255)
-# plt.subplot(2,2,4)
-# plt.imshow(np.reshape(img[:,178394],[8,8]))
-# plt.clim(0,255)
-# plt.show()
-#
-# plt.subplot(1,2,1)
-# plt.imshow(np.reshape(x[:,[100000]],[8,8]))
-# plt.clim(0,255)
-# plt.subplot(1,2,2)
-# plt.imshow(np.reshape(x_noisy[:,[100000]],[8,8]))
-# plt.clim(0,255)
-# plt.show()
-
 class deep_W(nn.Module):
     def __init__(self):
         super(deep_W, self).__init__()
-        self.fc1 = nn.Linear(64,32)
-        self.ReLU = nn.ReLU(True)
-        self.fc2 = nn.Linear(32,64)
+        self.fc1 = nn.Linear(256, 64)
+        self.fc2 = nn.Linear(64, 256)
+        self.ReLU = nn.ReLU()
+
     def forward(self, x):
         # define the forward function
         x = self.ReLU(self.fc1(x))
         x = self.ReLU(self.fc2(x))
         return x
+
+# # encoder performs transform
+# class deep_W_encoder(nn.Module):
+#     def __init__(self):
+#         super(deep_W_encoder, self).__init__()
+#         self.fc1 = nn.Linear(256, 64)
+#         self.fc2 = nn.Linear(64, 256)
+#         self.ReLU = nn.ReLU()
+#
+#     def forward(self, x):
+#         # define the forward function
+#         x = self.ReLU(self.fc1(x))
+#         x = self.ReLU(self.fc2(x))
+#         # x = self.ReLU(self.fc3(x))
+#         # x = self.ReLU(self.fc4(x))
+#         return x
+
 
 def DCT(n):
     """
@@ -142,48 +138,48 @@ x_im = img
 x_im_noisy = noisy_img
 
 # Patchify the images
-patch_size = 8
+patch_size = 16
 x = im2col(x_im, (patch_size, patch_size))
 x_noisy = im2col(x_im_noisy, (patch_size, patch_size))
 
 # Load the learned transform network
 W = deep_W().cuda()
-learning_rate = 1e-6
+learning_rate = 1e-5
 print(W)
 optimizer = torch.optim.Adam(W.parameters(), lr=learning_rate)
 checkpoint = torch.load(
-    '/home/berk/Desktop/Internship/LANL_MSU/MSU/learned_BM/results/deep_Wmatrix_supervised_w_matched_5_unmatched_5_threshold_100.00_gamma0_500.00_refpatches_255025_subset_10000_BARBARA_512x512.tar')
+    '/home/berk/Desktop/Internship/LANL_MSU/MSU/learned_BM_results/results/deep_W_learning_cyclic/deep_cyclic_W_encoder_supervised_w_matched_5_unmatched_5_threshold_50.00_gamma0_500.00_refpatches_247009_subset_10000_BARBARA_512x512.tar')
 W.load_state_dict(checkpoint['model_state_dict'])
 W.eval()
 
-W_DCT = DCT(8) # Load the DCT matrix
+W_DCT = DCT(16) # Load the DCT matrix
 number_patch = 1000 # Number of patches to check accuracy on
 number_match = 5 # Number of matches for each patch
-X_ref_patchs = np.zeros((64,number_patch))
-Xnoisy_ref_patchs = np.zeros((64,number_patch))
+X_ref_patchs = np.zeros((patch_size**2,number_patch))
+Xnoisy_ref_patchs = np.zeros((patch_size**2,number_patch))
 
 index_matrix = np.arange(0,x.shape[1],1)
-# subset_index_matrix = np.random.choice(index_matrix, size = number_patch) # Select a random subset among all patches
+subset_index_matrix = np.random.choice(index_matrix, size = number_patch) # Select a random subset among all patches
 # np.save('/home/berk/Desktop/Internship/LANL_MSU/MSU/learned_BM/results/accuracy/subset_idx_for_acc_plots.npy', subset_index_matrix)
-subset_index_matrix = np.load(r'/home/berk/Desktop/Internship/LANL_MSU/MSU/learned_BM/results/accuracy/subset_idx_for_acc_plots.npy')
+# subset_index_matrix = np.load(r'/home/berk/Desktop/Internship/LANL_MSU/MSU/learned_BM_results/results/accuracy/subset_idx_for_acc_plots.npy')
 
 # Assign matched patches for all reference patches in the "subset" of interest
 for i in range(number_patch):
     ref_ind = subset_index_matrix[i]
-    x_ref = x[:, ref_ind:ref_ind + 1]
+    x_ref = x[:, [ref_ind]]
     x_ref_noisy = x_noisy[:, ref_ind:ref_ind + 1]
     X_ref_patchs[:,[i]] = x_ref
     Xnoisy_ref_patchs[:,[i]] = x_ref_noisy
 
 score_array = []
 score2_array = []
-thresholds = [100] # Thresholds to check accuracy on
+thresholds = [30,40,50,60,70,80] # Thresholds to check accuracy on
 
 for j in range(len(thresholds)):
     print(j)
     score = test_accuracy_deep_W(x, x_noisy, X_ref_patchs, Xnoisy_ref_patchs, W, number_match, thresholds[j])
-    score2 = test_accuracy(x, x_noisy, X_ref_patchs, Xnoisy_ref_patchs, W_DCT, number_match, thresholds[j])
     print('Tl accuracy',np.sum(score)/(number_patch*number_match))
+    score2 = test_accuracy(x, x_noisy, X_ref_patchs, Xnoisy_ref_patchs, W_DCT, number_match, thresholds[j])
     print('DCT accuracy',np.sum(score2)/(number_patch*number_match))
     score_array.append(np.sum(score))
     score2_array.append(np.sum(score2))

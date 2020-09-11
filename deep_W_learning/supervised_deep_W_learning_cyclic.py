@@ -53,30 +53,37 @@ def convert_range(image, image_min, image_max, target_min, target_max):
 class deep_W_encoder(nn.Module):
     def __init__(self):
         super(deep_W_encoder, self).__init__()
-        self.fc1 = nn.Linear(256, 64)
-        self.fc2 = nn.Linear(64, 256)
+        self.fc1 = nn.Linear(64, 64)
+        self.fc2 = nn.Linear(64, 64)
+        self.fc3 = nn.Linear(64, 64)
+        self.fc4 = nn.Linear(64, 64)
         self.ReLU = nn.ReLU()
 
     def forward(self, x):
         # define the forward function
         x = self.ReLU(self.fc1(x))
         x = self.ReLU(self.fc2(x))
+        x = self.ReLU(self.fc3(x))
+        x = self.ReLU(self.fc4(x))
         return x
 
 # decoder performs inverse transform
 class deep_W_decoder(nn.Module):
     def __init__(self):
         super(deep_W_decoder, self).__init__()
-        self.fc1 = nn.Linear(256, 64)
-        self.fc2 = nn.Linear(64, 256)
+        self.fc1 = nn.Linear(64, 64)
+        self.fc2 = nn.Linear(64, 64)
+        self.fc3 = nn.Linear(64, 64)
+        self.fc4 = nn.Linear(64, 64)
         self.ReLU = nn.ReLU()
 
     def forward(self, x):
         # define the forward function
         x = self.ReLU(self.fc1(x))
         x = self.ReLU(self.fc2(x))
+        x = self.ReLU(self.fc3(x))
+        x = self.ReLU(self.fc4(x))
         return x
-
 
 torch.cuda.set_device(0)
 
@@ -86,20 +93,20 @@ print(W_encoder)
 W_decoder = deep_W_decoder().cuda()
 print(W_decoder)
 
-patch_size = 16
+patch_size = 8
 num_matches = 5
-num_unmatches = 5
+num_unmatches = 10
 num_atoms = patch_size ** 2
 
 threshold = 50
-gamma_0 = 500  # Coefficient of log|det W|
-gamma_1 = 0.5 * gamma_0  # Coefficient of the ||W||_F^2
+gamma_0 = 500               # Coefficient of log|det W|
+gamma_1 = 0.5 * gamma_0     # Coefficient of the ||W||_F^2
 
 img = np.load(r"/home/berk/Desktop/Internship/LANL_MSU/MSU/learned_BM/barbara_512x512.npy").astype(float)
 noisy_img = np.load(r"/home/berk/Desktop/Internship/LANL_MSU/MSU/learned_BM/barbara_512x512_noisy.npy").astype(float)
 
-x_im = img  # convert_range(img, np.amin(img), np.amax(img), -1, 1)
-x_im_noisy = noisy_img  # convert_range(noisy_img, np.amin(noisy_img), np.amax(noisy_img), -1, 1)ape)
+x_im = img                  # convert_range(img, np.amin(img), np.amax(img), -1, 1)
+x_im_noisy = noisy_img      # convert_range(noisy_img, np.amin(noisy_img), np.amax(noisy_img), -1, 1)ape)
 
 x = im2col(x_im, (patch_size, patch_size))
 x_noisy = im2col(x_im_noisy, (patch_size, patch_size))
@@ -113,7 +120,7 @@ learning_rate_decoder = 1e-5
 num_steps = x.shape[1]
 subset_steps = 10000
 Nepoch = 1000
-gap = 20
+gap = 100
 
 optimizer_encoder = torch.optim.Adam(W_encoder.parameters(), lr=learning_rate_encoder)
 optimizer_decoder = torch.optim.Adam(W_decoder.parameters(), lr=learning_rate_decoder)
@@ -124,16 +131,14 @@ epoch_losses = []
 tx_losses = []
 cyc_losses = []
 
-match_inds = torch.zeros(
-    [x.shape[1], num_matches]).long().cuda()  # contains sorted matched indices for each reference patch
-unmatch_inds = torch.zeros(
-    [x.shape[1], num_unmatches]).long().cuda()  # contains sorted unmatched indices for each reference patch
-for epoch in range(0, Nepoch):
+match_inds = torch.zeros([x.shape[1], num_matches]).long().cuda()       # contains sorted matched indices for each reference patch
+unmatch_inds = torch.zeros([x.shape[1], num_unmatches]).long().cuda()   # contains sorted unmatched indices for each reference patch
+for epoch in range(584, Nepoch):
     tx_loss = 0
     cyc_loss = 0
     epoch_loss = 0
     epoch_fitloss = 0
-    index_matrix = np.arange(0, num_steps, 1)  # Initial reference patches
+    index_matrix = np.arange(0, num_steps, 1)                           # Initial reference patches
     index_subset = np.random.choice(index_matrix, size=subset_steps)
 
     # Update best matches for each reference patch by computing loss wrt all selected patches and finding out the minimum K ones
@@ -151,28 +156,28 @@ for epoch in range(0, Nepoch):
 
         ref_ind = index_subset[step]
 
-        x_ref1 = x_noisy[:, ref_ind:ref_ind + 1].view(1, x_noisy.shape[0])
+        x_ref = x[:, ref_ind:ref_ind + 1].view(1, x.shape[0])
+        x_ref_noisy = x_noisy[:, ref_ind:ref_ind + 1].view(1, x_noisy.shape[0])
         x_matched = x_noisy[:, match_inds[ref_ind, :]].view(num_matches, x_noisy.shape[0])
         x_unmatched = x_noisy[:, unmatch_inds[ref_ind, :]].view(num_unmatches, x_noisy.shape[0])
 
-        x_ref1_tx = W_encoder(x_ref1)
+        x_ref_noisy_tx = W_encoder(x_ref_noisy)
         x_matched_tx = W_encoder(x_matched)
         x_unmatched_tx = W_encoder(x_unmatched)
 
-        x_ref1_cyc = W_decoder(hard_thresh(x_ref1_tx.view(1, x_noisy.shape[0]), threshold=threshold))
+        x_ref1_cyc = W_decoder(hard_thresh(x_ref_noisy_tx.view(1, x_noisy.shape[0]), threshold=threshold))
         x_matched_cyc = W_decoder(hard_thresh(x_matched_tx.view(num_matches, x_noisy.shape[0]), threshold=threshold))
         x_unmatched_cyc = W_decoder(hard_thresh(x_unmatched_tx.view(num_unmatches, x_noisy.shape[0]), threshold=threshold))
 
         # Transform loss with not matching patches set
-        loss_tx = torch.mean(torch.norm(hard_thresh(x_ref1_tx, threshold) - hard_thresh(x_matched_tx, threshold), dim=1)) - \
-                  torch.mean(torch.norm(hard_thresh(x_ref1_tx, threshold) - hard_thresh(x_unmatched_tx, threshold), dim=1))
+        loss_tx = torch.mean(torch.norm(hard_thresh(x_ref_noisy_tx, threshold) - hard_thresh(x_matched_tx, threshold), dim=1)) - \
+                  torch.mean(torch.norm(hard_thresh(x_ref_noisy_tx, threshold) - hard_thresh(x_unmatched_tx, threshold), dim=1))
 
         # Transform loss without not matching patches set
         # loss_tx = torch.mean(torch.norm(hard_thresh(x_ref1_tx,threshold) - hard_thresh(x_matched_tx,threshold), dim=1))
 
-        # Cyclic loss including all inverse transformed patches, can only include reference patch also
-        loss_cyc = criterion(x_ref1_cyc, x_ref1) + criterion(x_matched_cyc, x_matched) + criterion(x_unmatched_cyc,
-                                                                                                   x_unmatched)
+        # Cyclic loss including only reference patch, can include all inverse transformed patches also
+        loss_cyc = criterion(x_ref1_cyc, x_ref) #+ criterion(x_matched_cyc, x_matched) + criterion(x_unmatched_cyc, x_unmatched)
         # Sum both losses
         loss = loss_tx + loss_cyc
 
@@ -190,19 +195,25 @@ for epoch in range(0, Nepoch):
     tx_losses.append(tx_loss)
     cyc_losses.append(cyc_loss)
     print('epoch', epoch)
-    print('epoch_loss', epoch_loss)
-    print('cyc loss', cyc_loss)
-    print('tx loss', tx_loss)
+    print('epoch_loss', epoch_loss/(subset_steps))
+    print('cyc loss', cyc_loss/(subset_steps))
+    print('tx loss', tx_loss/(subset_steps))
 
 ##############
 # SAVE MODEL #
 ##############
-path = r"/home/berk/Desktop/Internship/LANL_MSU/MSU/learned_BM/results/"
+path = r"/home/berk/Desktop/Internship/LANL_MSU/MSU/learned_BM_results/results/deep_W_learning_cyclic/"
 torch.save(
     {'epoch': epoch, 'model_state_dict': W_encoder.state_dict(), 'optimizer_state_dict': optimizer_encoder.state_dict(),
      'loss': loss},
     os.path.join(path,
                  'deep_cyclic_W_encoder_supervised_w_matched_%d_unmatched_%d_threshold_%.2f_gamma0_%.2f_refpatches_%d_subset_%d_BARBARA_512x512.tar' % (
+                 num_matches, num_unmatches, threshold, gamma_0, num_steps, subset_steps)))
+torch.save(
+    {'epoch': epoch, 'model_state_dict': W_decoder.state_dict(), 'optimizer_state_dict': optimizer_decoder.state_dict(),
+     'loss': loss},
+    os.path.join(path,
+                 'deep_cyclic_W_decoder_supervised_w_matched_%d_unmatched_%d_threshold_%.2f_gamma0_%.2f_refpatches_%d_subset_%d_BARBARA_512x512.tar' % (
                  num_matches, num_unmatches, threshold, gamma_0, num_steps, subset_steps)))
 
 # # Check matched unmatched patches

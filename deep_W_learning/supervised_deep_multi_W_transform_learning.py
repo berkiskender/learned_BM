@@ -74,18 +74,18 @@ x = torch.tensor(x, dtype=torch.float).cuda()
 x_noisy = torch.tensor(x_noisy, dtype=torch.float).cuda()
 print('Shape after separating the image into columns of patch_size^2 in gpu:',x.shape)
 
-# Initialize the filter with DCT
+# Initialize the filter
 W1 = DCT(patch_size)
-# Initialize the filter with identity
-W2 = np.eye(8**2)
+# Initialize the filter
+# W2 = np.eye(8**2)
+W2 = DCT(patch_size)
 
 W1 = torch.tensor(W1).float().cuda()
 W1.requires_grad_(True)
-
 W2 = torch.tensor(W2).float().cuda()
 W2.requires_grad_(True)
 
-learning_rate = 2e-5
+learning_rate = 1e-3
 num_steps = x.shape[1] # 15
 subset_steps = 10000
 Nepoch = 1000
@@ -101,7 +101,7 @@ epoch_fitlosses =[]
 
 match_inds = torch.zeros([x.shape[1],num_matches]).long().cuda() # contains sorted matched indices for each reference patch
 unmatch_inds = torch.zeros([x.shape[1],num_unmatches]).long().cuda() # contains sorted unmatched indices for each reference patch
-for epoch in range(0,Nepoch):
+for epoch in range(36,Nepoch):
     epoch_loss = 0
     epoch_fitloss = 0
     index_matrix = np.arange(0,num_steps,1) # Initial reference patches
@@ -149,11 +149,11 @@ for epoch in range(0,Nepoch):
     print('epoch_fitloss',epoch_fitloss)
 
 W1 = W1.cpu().detach().numpy()
-path = r"/home/berk/Desktop/Internship/LANL_MSU/MSU/learned_BM/results/multi_W_learning"
-np.save(os.path.join(path,'W1_supervised_w_matched_%d_unmatched_%d_DCT_init_threshold_%.2f_gamma0_%.2f_refpatches_%d_subset_%d_gap_%d_BARBARA_512x512_LATEST.npy' %(num_matches,num_unmatches,threshold,gamma_0,num_steps, subset_steps,gap)),W1)
+path = r"/home/berk/Desktop/Internship/LANL_MSU/MSU/learned_BM_results/results/multi_W_learning"
+np.save(os.path.join(path,'W1_supervised_w_matched_%d_unmatched_%d_DCT_init_threshold_%.2f_gamma0_%.2f_refpatches_%d_subset_%d_gap_%d_BARBARA_512x512_LATEST_lr1e-3.npy' %(num_matches,num_unmatches,threshold,gamma_0,num_steps, subset_steps,gap)),W1)
 W2 = W2.cpu().detach().numpy()
-path = r"/home/berk/Desktop/Internship/LANL_MSU/MSU/learned_BM/results/multi_W_learning"
-np.save(os.path.join(path,'W2_supervised_w_matched_%d_unmatched_%d_DCT_init_threshold_%.2f_gamma0_%.2f_refpatches_%d_subset_%d_gap_%d_BARBARA_512x512_LATEST.npy' %(num_matches,num_unmatches,threshold,gamma_0,num_steps, subset_steps,gap)),W2)
+path = r"/home/berk/Desktop/Internship/LANL_MSU/MSU/learned_BM_results/results/multi_W_learning"
+np.save(os.path.join(path,'W2_supervised_w_matched_%d_unmatched_%d_DCT_init_threshold_%.2f_gamma0_%.2f_refpatches_%d_subset_%d_gap_%d_BARBARA_512x512_LATEST_lr1e-3.npy' %(num_matches,num_unmatches,threshold,gamma_0,num_steps, subset_steps,gap)),W2)
 
 # Check matched unmatched patches
 x_matched_patches = np.reshape(x_matched.cpu().detach().numpy(),[8,8,5])
@@ -228,4 +228,15 @@ im0 = axs[1].imshow(hard_thresh(xw_unmatched_patches[:,:,1],threshold=100),clim=
 im0 = axs[2].imshow(hard_thresh(xw_unmatched_patches[:,:,2],threshold=100),clim=(0,200))
 im0 = axs[3].imshow(hard_thresh(xw_unmatched_patches[:,:,3],threshold=100),clim=(0,200))
 im0 = axs[4].imshow(hard_thresh(xw_unmatched_patches[:,:,4],threshold=100),clim=(0,200))
+plt.show()
+
+plt.figure()
+plt.subplot(1,2,1)
+plt.title('W1')
+plt.imshow(W1.cpu().detach().numpy())
+plt.colorbar()
+plt.subplot(1,2,2)
+plt.title('W2')
+plt.imshow(W2.cpu().detach().numpy())
+plt.colorbar()
 plt.show()

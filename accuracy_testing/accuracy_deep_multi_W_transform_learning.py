@@ -86,8 +86,8 @@ x = im2col(x_im, (patch_size, patch_size))
 x_noisy = im2col(x_im_noisy, (patch_size, patch_size))
 
 # Load the learned transform matrices
-W1 = np.load(r'/home/berk/Desktop/Internship/LANL_MSU/MSU/learned_BM/results/multi_W_learning/W1_supervised_w_matched_5_unmatched_5_DCT_init_threshold_100.00_gamma0_500.00_refpatches_255025_subset_10000_BARBARA_512x512_LATEST.npy')
-W2 = np.load(r'/home/berk/Desktop/Internship/LANL_MSU/MSU/learned_BM/results/multi_W_learning/W2_supervised_w_matched_5_unmatched_5_DCT_init_threshold_100.00_gamma0_500.00_refpatches_255025_subset_10000_BARBARA_512x512_LATEST.npy')
+W1 = np.load(r'/home/berk/Desktop/Internship/LANL_MSU/MSU/learned_BM_results/results/multi_W_learning/W1_supervised_w_matched_5_unmatched_5_DCT_init_threshold_70.00_gamma0_500.00_refpatches_255025_subset_10000_gap_20_BARBARA_512x512_LATEST_lr1e-3.npy')
+W2 = np.load(r'/home/berk/Desktop/Internship/LANL_MSU/MSU/learned_BM_results/results/multi_W_learning/W2_supervised_w_matched_5_unmatched_5_DCT_init_threshold_70.00_gamma0_500.00_refpatches_255025_subset_10000_gap_20_BARBARA_512x512_LATEST_lr1e-3.npy')
 
 W_DCT = DCT(8) # Load the DCT matrix
 number_patch = 1000 # Number of patches to check accuracy on
@@ -98,7 +98,7 @@ Xnoisy_ref_patchs = np.zeros((64,number_patch))
 index_matrix = np.arange(0,x.shape[1],1)
 # subset_index_matrix = np.random.choice(index_matrix, size = number_patch) # Select a random subset among all patches
 # np.save('/home/berk/Desktop/Internship/LANL_MSU/MSU/learned_BM/results/accuracy/subset_idx_for_acc_plots.npy', subset_index_matrix)
-subset_index_matrix = np.load(r'/home/berk/Desktop/Internship/LANL_MSU/MSU/learned_BM/results/accuracy/subset_idx_for_acc_plots.npy')
+subset_index_matrix = np.load(r'/home/berk/Desktop/Internship/LANL_MSU/MSU/learned_BM_results/results/accuracy/subset_idx_for_acc_plots.npy')
 
 # Assign matched patches for all reference patches in the "subset" of interest
 for i in range(number_patch):
