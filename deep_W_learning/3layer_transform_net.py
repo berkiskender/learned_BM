@@ -140,9 +140,11 @@ for epoch in range(0,Nepoch):
 
         optimizer_W1.zero_grad()
         optimizer_W2.zero_grad()
+        optimizer_W3.zero_grad()
         loss.backward()
         optimizer_W1.step()
         optimizer_W2.step()
+        optimizer_W3.step()
 
         epoch_loss += loss.item()
         epoch_fitloss += loss_fit.item()
